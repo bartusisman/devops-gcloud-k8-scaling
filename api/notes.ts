@@ -1,3 +1,4 @@
+import { UUID, Note } from '../types';
 import { supabase } from '../lib/supabase';
 import { api } from './client';
 

@@ -37,9 +37,9 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "Home",
+            title: "Activity",
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" size={size} color={color} />
+              <Ionicons name="list-outline" size={size} color={color} />
             ),
           }}
         />
@@ -48,7 +48,7 @@ export default function AppLayout() {
           options={{
             title: "Notes",
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="document-text-outline" size={size} color={color} />
+              <Ionicons name="newspaper-outline" size={size} color={color} />
             ),
           }}
         />

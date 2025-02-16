@@ -1,17 +1,24 @@
-import { View, Text, StyleSheet, FlatList, TextInput, Pressable, Alert, Modal } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, Modal, Dimensions } from "react-native";
 import { useState, useEffect } from "react";
 import { useNotes } from "../../context/NotesContext";
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import Animated, { 
   FadeIn, 
-  FadeOut, 
-  SlideInDown, 
-  SlideOutDown,
   Layout,
   BounceIn,
+  FadeInDown,
+  SlideInDown,
+  SlideOutDown,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import { Note } from "../../api/notes";
+
+const { width } = Dimensions.get('window');
+const GRID_PADDING = 12;
+const CARD_MARGIN = 6;
+const CARD_WIDTH = (width - GRID_PADDING * 2 - CARD_MARGIN * 4) / 2;
+const CARD_HEIGHT = CARD_WIDTH * 1.2;
 
 function formatDateTime(timestamp: string) {
   const date = new Date(timestamp);
@@ -24,38 +31,13 @@ function formatDateTime(timestamp: string) {
   };
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 export default function NotesScreen() {
-  const { notes, loading, createNote, loadNotes } = useNotes();
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const { notes, loading, loadNotes } = useNotes();
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
   useEffect(() => {
     loadNotes();
   }, []);
-
-  const handleCreateNote = async () => {
-    if (!title.trim()) {
-      Alert.alert('Error', 'Title is required');
-      return;
-    }
-
-    if (!content.trim()) {
-      Alert.alert('Error', 'Content is required');
-      return;
-    }
-
-    try {
-      await createNote(content, title.trim());
-      setTitle("");
-      setContent("");
-      setIsModalVisible(false);
-    } catch (error) {
-      Alert.alert('Error', (error as Error).message);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -69,96 +51,67 @@ export default function NotesScreen() {
         keyExtractor={(item) => item.id}
         refreshing={loading}
         onRefresh={loadNotes}
-        contentContainerStyle={styles.listContent}
-        style={styles.list}
-        itemLayoutAnimation={Layout.springify()}
+        numColumns={2}
+        contentContainerStyle={styles.grid}
+        columnWrapperStyle={styles.row}
         renderItem={({ item, index }) => {
-          const { date, time } = formatDateTime(item.timestamp);
+          const { time } = formatDateTime(item.timestamp);
           return (
             <Animated.View 
-              entering={FadeIn.delay(index * 100)}
+              entering={FadeInDown.delay(index * 100).springify()}
               layout={Layout.springify()}
               style={styles.noteCard}
             >
-              <View style={styles.noteHeader}>
-                <Text style={styles.noteTitle}>{item.title}</Text>
-                <Text style={styles.noteUsername}>@{item.username}</Text>
-              </View>
-              <Text style={styles.noteContent}>{item.content}</Text>
-              <View style={styles.noteFooter}>
-                <Text style={styles.noteDate}>{date}</Text>
+              <Pressable 
+                style={styles.cardContent}
+                onPress={() => setSelectedNote(item)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.noteUsername}>@{item.username}</Text>
+                </View>
+                <Text style={styles.noteContent} numberOfLines={4}>{item.content}</Text>
                 <Text style={styles.noteTime}>{time}</Text>
-              </View>
+              </Pressable>
             </Animated.View>
           );
         }}
       />
 
-      <AnimatedPressable 
-        style={styles.fab}
-        onPress={() => setIsModalVisible(true)}
-        entering={BounceIn}
-      >
-        <View style={styles.fabContent}>
-          <Ionicons name="add" size={24} color="#fff" />
-          <Text style={styles.fabText}>New Note</Text>
-        </View>
-      </AnimatedPressable>
-
       <Modal
-        visible={isModalVisible}
+        visible={!!selectedNote}
+        transparent
         animationType="none"
-        transparent={true}
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={() => setSelectedNote(null)}
       >
         <Animated.View 
-          style={styles.modalOverlay}
           entering={FadeIn}
-          exiting={FadeOut}
+          style={styles.modalOverlay}
         >
           <BlurView intensity={20} style={styles.blurView}>
             <Animated.View 
-              style={styles.modalContent}
               entering={SlideInDown.springify()}
               exiting={SlideOutDown.springify()}
+              style={styles.modalContent}
             >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create Note</Text>
-                <Pressable 
-                  onPress={() => setIsModalVisible(false)}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={24} color="#4a5568" />
-                </Pressable>
-              </View>
-
-              <TextInput
-                style={styles.titleInput}
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Note title..."
-                placeholderTextColor="#718096"
-              />
-
-              <TextInput
-                style={styles.contentInput}
-                value={content}
-                onChangeText={setContent}
-                placeholder="Write your note..."
-                placeholderTextColor="#718096"
-                multiline
-                textAlignVertical="top"
-              />
-
-              <Pressable 
-                style={({ pressed }) => [
-                  styles.createButton,
-                  pressed && styles.createButtonPressed
-                ]}
-                onPress={handleCreateNote}
-              >
-                <Text style={styles.createButtonText}>Create Note</Text>
-              </Pressable>
+              {selectedNote && (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>{selectedNote.title}</Text>
+                    <Pressable 
+                      onPress={() => setSelectedNote(null)}
+                      style={styles.closeButton}
+                    >
+                      <Ionicons name="close" size={24} color="#4a5568" />
+                    </Pressable>
+                  </View>
+                  <Text style={styles.modalUsername}>@{selectedNote.username}</Text>
+                  <Text style={styles.modalText}>{selectedNote.content}</Text>
+                  <Text style={styles.modalTime}>
+                    {formatDateTime(selectedNote.timestamp).date} at {formatDateTime(selectedNote.timestamp).time}
+                  </Text>
+                </>
+              )}
             </Animated.View>
           </BlurView>
         </Animated.View>
@@ -182,10 +135,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 3,
@@ -195,94 +145,54 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a365d",
   },
-  list: {
-    flex: 1,
+  grid: {
+    padding: GRID_PADDING,
   },
-  listContent: {
-    padding: 16,
-    paddingBottom: 100, // Increased padding for FAB
+  row: {
+    justifyContent: 'space-between',
   },
   noteCard: {
+    width: CARD_WIDTH,
+    height: CARD_WIDTH,
+    margin: CARD_MARGIN,
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 12,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 5,
-    transform: [{ scale: 1 }],
+    shadowRadius: 3,
+    elevation: 3,
   },
-  noteHeader: {
-    marginBottom: 12,
+  cardContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  cardHeader: {
+    marginBottom: 6,
   },
   noteTitle: {
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: "700",
     color: "#1a365d",
-    marginBottom: 4,
-  },
-  noteUsername: {
-    fontSize: 14,
-    color: "#4a5568",
-    fontWeight: "500",
+    marginBottom: 2,
   },
   noteContent: {
-    fontSize: 16,
-    color: "#2d3748",
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  noteFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-  },
-  noteDate: {
     fontSize: 13,
-    color: "#718096",
+    color: "#4a5568",
+    lineHeight: 18,
+    flex: 1,
+  },
+  noteUsername: {
+    fontSize: 11,
+    color: "#4a5568",
+    fontWeight: "600",
   },
   noteTime: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#718096",
-    fontWeight: "500",
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    backgroundColor: '#1a365d',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    transform: [{ scale: 1 }],
-  },
-  fabContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  fabText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: "600",
+    marginTop: 6,
+    textAlign: 'right',
   },
   modalOverlay: {
     flex: 1,
@@ -306,52 +216,37 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  modalText: {
+    fontSize: 16,
+    color: "#2d3748",
+    lineHeight: 24,
+    marginBottom: 16,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   modalTitle: {
+    flex: 1,
     fontSize: 24,
     fontWeight: "700",
     color: "#1a365d",
+    marginRight: 16,
   },
   closeButton: {
     padding: 4,
   },
-  titleInput: {
-    fontSize: 18,
+  modalUsername: {
+    fontSize: 16,
+    color: "#4a5568",
     fontWeight: "500",
-    color: "#2d3748",
-    padding: 16,
-    backgroundColor: '#f7fafc',
-    borderRadius: 12,
     marginBottom: 16,
   },
-  contentInput: {
-    fontSize: 16,
-    color: "#2d3748",
-    padding: 16,
-    backgroundColor: '#f7fafc',
-    borderRadius: 12,
-    marginBottom: 20,
-    minHeight: 150,
-  },
-  createButton: {
-    backgroundColor: '#1a365d',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    transform: [{ scale: 1 }],
-  },
-  createButtonPressed: {
-    transform: [{ scale: 0.98 }],
-    backgroundColor: '#2c5282',
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: "600",
+  modalTime: {
+    fontSize: 14,
+    color: "#718096",
+    textAlign: 'right',
   },
 }); 

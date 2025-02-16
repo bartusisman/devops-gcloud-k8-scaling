@@ -1,10 +1,10 @@
-import { UUID, Note } from '../types';
+import { UUID } from '../types';
 import { supabase } from '../lib/supabase';
 import { api } from './client';
 
 export interface Note {
-  id: uuid;
-  user_id: uuid;
+  id: UUID;
+  user_id: UUID;
   username: string;
   title: string;
   content: string;

@@ -21,12 +21,12 @@ export default function ProfileScreen() {
 
   const stats = [
     {
-      icon: "document-text",
+      icon: "document-text-outline" as const,
       label: "Total Notes",
       value: userNotes.length,
     },
     {
-      icon: "time",
+      icon: "time-outline" as const,
       label: "Last Active",
       value: userNotes.length > 0 
         ? new Date(userNotes[0].timestamp).toLocaleDateString()

@@ -85,4 +85,23 @@ export const notesApi = {
       return api.handleError(error);
     }
   },
+
+  async update(id: string, data: CreateNoteDTO): Promise<Note> {
+    try {
+      const { data: note, error } = await supabase
+        .from('notes')
+        .update({
+          title: data.title,
+          content: data.content,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return note;
+    } catch (error) {
+      return api.handleError(error);
+    }
+  },
 }; 

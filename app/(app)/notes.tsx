@@ -36,12 +36,13 @@ function formatDateTime(timestamp: string) {
 }
 
 export default function NotesScreen() {
-  const { notes, loading, loadNotes, deleteNote, createNote } = useNotes();
+  const { notes, loading, loadNotes, deleteNote, createNote, updateNote } = useNotes();
   const { session } = useAuth();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
 
   useEffect(() => {
     loadNotes();
@@ -75,6 +76,30 @@ export default function NotesScreen() {
       loadNotes();
     } catch (error) {
       Alert.alert('Error', 'Failed to create note');
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingNote) return;
+    
+    if (!title.trim()) {
+      Alert.alert('Error', 'Title is required');
+      return;
+    }
+
+    if (!content.trim()) {
+      Alert.alert('Error', 'Content is required');
+      return;
+    }
+
+    try {
+      await updateNote(editingNote.id, { title: title.trim(), content });
+      setEditingNote(null);
+      setTitle("");
+      setContent("");
+      loadNotes();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update note');
     }
   };
 
@@ -112,24 +137,46 @@ export default function NotesScreen() {
                     <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
                     {isOwnNote && (
                       <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation();
+                        onPress={() => {
                           Alert.alert(
-                            'Delete Note',
-                            'Are you sure you want to delete this note?',
+                            'Note Options',
+                            '',
                             [
-                              { text: 'Cancel', style: 'cancel' },
-                              { 
-                                text: 'Delete', 
-                                onPress: () => handleDelete(item.id),
+                              {
+                                text: 'Edit',
+                                onPress: () => {
+                                  setEditingNote(item);
+                                  setTitle(item.title);
+                                  setContent(item.content);
+                                },
+                                style: 'default'
+                              },
+                              {
+                                text: 'Delete',
+                                onPress: () => {
+                                  Alert.alert(
+                                    'Delete Note',
+                                    'Are you sure you want to delete this note?',
+                                    [
+                                      { text: 'Cancel', style: 'cancel' },
+                                      { 
+                                        text: 'Delete', 
+                                        onPress: () => handleDelete(item.id),
+                                        style: 'destructive'
+                                      },
+                                    ]
+                                  );
+                                },
                                 style: 'destructive'
                               },
+                              { text: 'Cancel', style: 'cancel' }
                             ]
                           );
                         }}
                         hitSlop={8}
+                        style={styles.menuButton}
                       >
-                        <Ionicons name="trash-outline" size={16} color="#e53e3e" />
+                        <Ionicons name="ellipsis-vertical" size={16} color="#4a5568" />
                       </Pressable>
                     )}
                   </View>
@@ -194,10 +241,15 @@ export default function NotesScreen() {
       </Modal>
 
       <Modal
-        visible={isModalVisible}
+        visible={isModalVisible || !!editingNote}
         transparent
         animationType="none"
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={() => {
+          setIsModalVisible(false);
+          setEditingNote(null);
+          setTitle("");
+          setContent("");
+        }}
       >
         <Animated.View 
           entering={FadeIn}
@@ -210,9 +262,16 @@ export default function NotesScreen() {
               style={styles.modalContent}
             >
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create Note</Text>
+                <Text style={styles.modalTitle}>
+                  {editingNote ? 'Edit Note' : 'Create Note'}
+                </Text>
                 <Pressable 
-                  onPress={() => setIsModalVisible(false)}
+                  onPress={() => {
+                    setIsModalVisible(false);
+                    setEditingNote(null);
+                    setTitle("");
+                    setContent("");
+                  }}
                   style={styles.closeButton}
                 >
                   <Ionicons name="close" size={24} color="#4a5568" />
@@ -239,9 +298,11 @@ export default function NotesScreen() {
                   styles.createButton,
                   pressed && styles.createButtonPressed
                 ]}
-                onPress={handleCreateNote}
+                onPress={editingNote ? handleEdit : handleCreateNote}
               >
-                <Text style={styles.createButtonText}>Create Note</Text>
+                <Text style={styles.createButtonText}>
+                  {editingNote ? 'Save Changes' : 'Create Note'}
+                </Text>
               </Pressable>
             </Animated.View>
           </BlurView>
@@ -444,5 +505,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: "600",
+  },
+  menuButton: {
+    padding: 4,
+    backgroundColor: '#f7fafc',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 

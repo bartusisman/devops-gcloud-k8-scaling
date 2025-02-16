@@ -9,6 +9,7 @@ interface NotesContextType {
   loadUserNotes: () => Promise<void>;
   createNote: (content: string, title: string) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
+  updateNote: (id: string, data: { title: string, content: string }) => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType>({} as NotesContextType);
@@ -62,6 +63,16 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadNotes, loadUserNotes]);
 
+  const updateNote = useCallback(async (id: string, data: { title: string, content: string }) => {
+    try {
+      setLoading(true);
+      await notesApi.update(id, data);
+      await Promise.all([loadNotes(), loadUserNotes()]);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadNotes, loadUserNotes]);
+
   return (
     <NotesContext.Provider 
       value={{ 
@@ -71,7 +82,8 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
         loadNotes, 
         loadUserNotes, 
         createNote, 
-        deleteNote 
+        deleteNote,
+        updateNote
       }}
     >
       {children}

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { View, StyleSheet, Image, Text, Pressable } from "react-native";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
+import { Alert } from 'react-native';
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState("");
@@ -13,7 +15,31 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const theme = useTheme();
+  const { signUp } = useAuth();
+
+  const handleSignUp = async () => {
+    if (!username || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signUp(username, password);
+      router.replace('/(app)');
+    } catch (error) {
+      Alert.alert('Error', (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -77,9 +103,10 @@ export default function RegisterScreen() {
           />
 
           <Button 
-            title="Create Account" 
-            onPress={() => {}}
+            title={loading ? "Creating Account..." : "Create Account"}
+            onPress={handleSignUp}
             style={styles.button}
+            disabled={loading}
           />
 
           <View style={styles.dividerContainer}>

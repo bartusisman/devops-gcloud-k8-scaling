@@ -6,19 +6,21 @@ interface ButtonProps {
   onPress: () => void;
   variant?: "primary" | "secondary";
   style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
 }
 
-export function Button({ title, onPress, variant = "primary", style }: ButtonProps) {
+export function Button({ title, onPress, variant = "primary", style, disabled }: ButtonProps) {
   const theme = useTheme();
 
   const buttonStyle = variant === "primary" 
-    ? { backgroundColor: theme.colors.primary }
-    : { backgroundColor: theme.colors.secondary };
+    ? { backgroundColor: disabled ? "#718096" : theme.colors.primary }
+    : { backgroundColor: disabled ? "#718096" : theme.colors.secondary };
 
   return (
     <TouchableOpacity 
       style={[styles.button, buttonStyle, style]} 
       onPress={onPress}
+      disabled={disabled}
     >
       <Text style={styles.text}>{title}</Text>
     </TouchableOpacity>

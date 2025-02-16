@@ -1,17 +1,37 @@
 import { useState } from "react";
-import { View, StyleSheet, Image, Text, Pressable } from "react-native";
-import { Link } from "expo-router";
+import { View, StyleSheet, Image, Text, Pressable, Alert } from "react-native";
+import { Link, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const theme = useTheme();
+  const { signIn } = useAuth();
+
+  const handleSignIn = async () => {
+    if (!username || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signIn(username, password);
+      router.replace('/(app)');
+    } catch (error) {
+      Alert.alert('Error', (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -57,9 +77,10 @@ export default function LoginScreen() {
           />
 
           <Button 
-            title="Sign In" 
-            onPress={() => {}}
+            title={loading ? "Signing in..." : "Sign In"}
+            onPress={handleSignIn}
             style={styles.button}
+            disabled={loading}
           />
           
           <View style={styles.dividerContainer}>

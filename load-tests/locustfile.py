@@ -3,52 +3,57 @@ import random
 import string
 import json
 import requests
-from locust import HttpUser, task, between
+from locust import HttpUser, task, between, events
 
-# Supabase settings (set via env vars or hardcode for testing)
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://asioeolrooqlsotuowbd.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaW9lb2xyb29xbHNvdHVvd2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3MDA4NzUsImV4cCI6MjA1NTI3Njg3NX0.IYvgeDPrt4CU3C0eypFZwy0QehGRRIIj6SwKc6PdXOc")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://your-project.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-anon-key")
+
+# Credentials for a single “loadtest” account you must pre-create in Supabase
+LOADTEST_EMAIL    = os.getenv("LOADTEST_EMAIL",    "loadtest@notesync.com")
+LOADTEST_PASSWORD = os.getenv("LOADTEST_PASSWORD", "Password123!")
 
 class NoteSyncUser(HttpUser):
-    # point this at your LoadBalancer IP or hostname
-    host = os.getenv("LOCUST_TARGET", "http://35.189.72.248")
+    host = os.getenv("LOCUST_TARGET", "http://YOUR.LB.ADDRESS")
     wait_time = between(1, 2)
-
-    # will hold note UUIDs
     created_notes = []
 
     def on_start(self):
-        # --- 1) Sign up & login to Supabase ---
-        username = f"testuser_{random.randint(1,100000)}"
-        password = "Password123!"
-        email = f"{username.lower()}@notesync.com"
-
-        # Sign up
+        # 1) Login once per Locust user (reuse the same loadtest@notesync.com account)
+        login_payload = {
+            "grant_type": "password",
+            "email":      LOADTEST_EMAIL,
+            "password":   LOADTEST_PASSWORD
+        }
         resp = requests.post(
-            f"{SUPABASE_URL}/auth/v1/signup",
-            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
-            json={"email": email, "password": password,
-                  "options": {"data": {"username": username}}}
+            f"{SUPABASE_URL}/auth/v1/token",
+            headers={
+                "apikey":       SUPABASE_KEY,
+                "Content-Type": "application/json"
+            },
+            json=login_payload,
         )
-        # ignore failures if user already exists
 
-        # Login
-        resp = requests.post(
-            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
-            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
-            json={"email": email, "password": password}
-        )
-        resp.raise_for_status()
-        token = resp.json()["access_token"]
+        if resp.status_code != 200:
+            # if we can’t login, kill this greenlet so it doesn’t spam failures
+            resp.error(f"🛑 login failed: {resp.status_code} {resp.text}")
+            self.environment.runner.quit()
+            return
+
+        token = resp.json().get("access_token")
+        if not token:
+            resp.error("🛑 login returned no access_token")
+            self.environment.runner.quit()
+            return
+
         self.api_headers = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Content-Type":  "application/json"
         }
 
-        # --- 2) Seed 10 notes so updates/deletes succeed ---
-        for _ in range(10):
-            title = f"seed_{random.randint(1,1e6)}"
-            content = "".join(random.choices(string.ascii_letters + " ", k=100))
+        # 2) Seed 5 notes so update/delete tasks always have something to work on
+        for _ in range(5):
+            title   = f"seed_{random.randint(1,1000000)}"
+            content = "".join(random.choices(string.ascii_letters + " ", k=80))
             r = self.client.post(
                 "/api/notes",
                 json={"title": title, "content": content},
@@ -58,8 +63,8 @@ class NoteSyncUser(HttpUser):
             if r.status_code == 201:
                 try:
                     self.created_notes.append(r.json()["id"])
-                except (ValueError, KeyError):
-                    r.failure("Missing id in seed response")
+                except Exception:
+                    r.failure("no id in seed response")
 
     @task(3)
     def get_all_notes(self):
@@ -71,8 +76,8 @@ class NoteSyncUser(HttpUser):
 
     @task(4)
     def create_note(self):
-        title = f"Test_{random.randint(1,1e6)}"
-        content = "".join(random.choices(string.ascii_letters + " ", k=200))
+        title   = f"T_{random.randint(1,1000000)}"
+        content = "".join(random.choices(string.ascii_letters + " ", k=150))
         with self.client.post(
             "/api/notes",
             json={"title": title, "content": content},
@@ -82,15 +87,15 @@ class NoteSyncUser(HttpUser):
             if r.status_code == 201:
                 try:
                     self.created_notes.append(r.json()["id"])
-                except (ValueError, KeyError):
-                    r.failure("Missing id in create response")
+                except Exception:
+                    r.failure("no id in create response")
 
     @task(2)
     def update_note(self):
-        if len(self.created_notes) >= 5:
+        if len(self.created_notes) >= 2:
             note_id = random.choice(self.created_notes)
-            title = f"Upd_{random.randint(1,1e6)}"
-            content = "".join(random.choices(string.ascii_letters + " ", k=150))
+            title   = f"U_{random.randint(1,1000000)}"
+            content = "".join(random.choices(string.ascii_letters + " ", k=120))
             self.client.put(
                 f"/api/notes/{note_id}",
                 json={"title": title, "content": content},
@@ -99,7 +104,7 @@ class NoteSyncUser(HttpUser):
 
     @task(1)
     def delete_note(self):
-        if len(self.created_notes) > 15:
+        if len(self.created_notes) > 8:
             note_id = self.created_notes.pop(0)
             self.client.delete(
                 f"/api/notes/{note_id}",

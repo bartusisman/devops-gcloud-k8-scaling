@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, Dimensions, Alert, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, Dimensions, Alert, TextInput, ScrollView } from "react-native";
 import { useState, useEffect } from "react";
 import { useNotes } from "../../context/NotesContext";
 import { useAuth } from "../../context/AuthContext";
@@ -11,9 +11,12 @@ import Animated, {
   FadeInDown,
   SlideInDown,
   SlideOutDown,
+  FadeOut,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Note } from "../../api/notes";
+import { Notification } from "../../context/NotesContext";
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const GRID_PADDING = 12;
@@ -35,18 +38,72 @@ function formatDateTime(timestamp: string) {
   };
 }
 
+// NotificationItem component
+const NotificationItem = ({ notification, onPress }: { notification: Notification, onPress: () => void }) => {
+  const { time } = formatDateTime(notification.timestamp);
+  
+  return (
+    <Animated.View
+      entering={FadeInDown.springify()}
+      exiting={FadeOut}
+      style={[
+        styles.notificationItem,
+        !notification.read && styles.unreadNotification
+      ]}
+    >
+      <Pressable style={styles.notificationContent} onPress={onPress}>
+        <View style={styles.notificationIcon}>
+          <Ionicons 
+            name={notification.read ? "notifications-outline" : "notifications"} 
+            size={18} 
+            color={notification.read ? "#718096" : "#3182ce"} 
+          />
+        </View>
+        <View style={styles.notificationTextContainer}>
+          <Text style={styles.notificationTitle} numberOfLines={1}>
+            New note: "{notification.title}"
+          </Text>
+          <Text style={styles.notificationTime}>{time}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+};
+
 export default function NotesScreen() {
-  const { notes, loading, loadNotes, deleteNote, createNote, updateNote } = useNotes();
+  const { notes, loading, loadNotes, deleteNote, createNote, updateNote, 
+          notifications, markNotificationsAsRead, checkForNewNotifications } = useNotes();
   const { session } = useAuth();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const router = useRouter();
 
+  // Check for new notifications when the screen mounts or becomes focused
   useEffect(() => {
+    console.log("Notes screen mounted, loading notes and checking notifications");
     loadNotes();
+    checkForNewNotifications();
+    
+    // Log current notifications state
+    console.log("Current notifications:", notifications);
+    console.log("Has unread notifications:", notifications.some(n => !n.read));
   }, []);
+
+  const handleNotificationPress = (noteId: string) => {
+    // Find the note corresponding to this notification
+    const note = notes.find(n => n.id === noteId);
+    if (note) {
+      setSelectedNote(note);
+    }
+    // Mark all notifications as read
+    markNotificationsAsRead();
+    // Close the notifications panel
+    setShowNotifications(false);
+  };
 
   const handleDelete = async (noteId: string) => {
     try {
@@ -103,12 +160,77 @@ export default function NotesScreen() {
     }
   };
 
+  // Add a button to manually check for notifications (for testing)
+  const testCheckNotifications = () => {
+    console.log("Manually checking for notifications");
+    checkForNewNotifications();
+    setTimeout(() => {
+      console.log("After check - notifications:", notifications);
+    }, 2000); // Give it time to update
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Community Notes</Text>
-        <Ionicons name="newspaper-outline" size={24} color="#1a365d" />
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.title}>Community Notes</Text>
+        </View>
+        
+        {/* Notification icon moved left of paper icon */}
+        <View style={styles.headerActions}>
+          <Pressable 
+            onPress={() => {
+              router.push('/(app)/notifications');
+            }}
+            style={styles.iconButton}
+          >
+            <Ionicons 
+              name={notifications.some(n => !n.read) ? "notifications" : "notifications-outline"} 
+              size={24} 
+              color={notifications.some(n => !n.read) ? "#3182ce" : "#1a365d"} 
+            />
+            {notifications.some(n => !n.read) && (
+              <View style={styles.notificationDot} />
+            )}
+          </Pressable>
+          <Ionicons name="newspaper-outline" size={24} color="#1a365d" />
+        </View>
       </View>
+      
+      {/* Notifications Panel */}
+      {showNotifications && (
+        <Animated.View 
+          entering={SlideInDown.springify()}
+          exiting={SlideOutDown.springify()}
+          style={styles.notificationsPanel}
+        >
+          <View style={styles.notificationsHeader}>
+            <Text style={styles.notificationsTitle}>Notifications</Text>
+            {notifications.length > 0 && (
+              <Pressable onPress={markNotificationsAsRead} style={styles.markAllRead}>
+                <Text style={styles.markAllReadText}>Mark all as read</Text>
+              </Pressable>
+            )}
+          </View>
+          
+          {notifications.length === 0 ? (
+            <View style={styles.emptyNotifications}>
+              <Ionicons name="notifications-off-outline" size={32} color="#718096" />
+              <Text style={styles.emptyNotificationsText}>No notifications</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.notificationsList}>
+              {notifications.map(notification => (
+                <NotificationItem 
+                  key={notification.id} 
+                  notification={notification} 
+                  onPress={() => handleNotificationPress(notification.id)} 
+                />
+              ))}
+            </ScrollView>
+          )}
+        </Animated.View>
+      )}
 
       <Animated.FlatList
         data={notes}
@@ -318,23 +440,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#f7fafc",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
+    borderBottomColor: "#e2e8f0",
+    zIndex: 10,
+  },
+  headerTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "bold",
     color: "#1a365d",
   },
   grid: {
@@ -342,7 +464,7 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   noteCard: {
     width: CARD_WIDTH,
@@ -514,5 +636,104 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    marginRight: 16,
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#3182ce',
+  },
+  notificationsPanel: {
+    position: 'absolute',
+    top: 57, // Just below the header
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
+    maxHeight: 300,
+  },
+  notificationsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  notificationsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a365d',
+  },
+  markAllRead: {
+    padding: 4,
+  },
+  markAllReadText: {
+    fontSize: 14,
+    color: '#3182ce',
+  },
+  notificationsList: {
+    maxHeight: 250,
+  },
+  notificationItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  unreadNotification: {
+    backgroundColor: '#ebf8ff',
+  },
+  notificationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationIcon: {
+    marginRight: 12,
+  },
+  notificationTextContainer: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2d3748',
+    marginBottom: 2,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: '#718096',
+  },
+  emptyNotifications: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyNotificationsText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#718096',
   },
 }); 

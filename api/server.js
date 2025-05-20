@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 const app = express();
 
 // Cloud Function URL
-const LOG_NOTE_CREATED_URL = "https://europe-west2-notesync-project.cloudfunctions.net/logNoteCreated";
+const LOG_NOTE_CREATED_URL = "https://europe-west2-cs436-project-459822.cloudfunctions.net/logNoteCreated";
 
 // In-memory store for notes
 const notes = [
@@ -69,8 +69,10 @@ app.post('/api/notes', auth, (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        noteId: newNote.id,
         title: newNote.title,
-        timestamp: newNote.timestamp
+        timestamp: newNote.timestamp,
+        username: newNote.username
       })
     }).catch(err => {
       console.error("Failed to log note creation:", err);

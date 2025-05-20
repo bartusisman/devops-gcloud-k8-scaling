@@ -18,7 +18,7 @@ export interface CreateNoteDTO {
 }
 
 // Define the Cloud Function URL
-const LOG_NOTE_CREATED_URL = "https://europe-west2-notesync-project.cloudfunctions.net/logNoteCreated";
+const LOG_NOTE_CREATED_URL = "https://europe-west2-cs436-project-459822.cloudfunctions.net/logNoteCreated";
 
 export const notesApi = {
   async create(data: CreateNoteDTO): Promise<Note> {
@@ -42,16 +42,27 @@ export const notesApi = {
       
       // Call the Cloud Function to log the note creation
       try {
-        await fetch(LOG_NOTE_CREATED_URL, {
+        console.log("Calling Cloud Function with data:", {
+          noteId: note.id,
+          title: note.title,
+          timestamp: note.timestamp,
+          username: note.username
+        });
+        
+        const response = await fetch(LOG_NOTE_CREATED_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            noteId: note.id,
             title: note.title,
-            timestamp: note.timestamp
+            timestamp: note.timestamp,
+            username: note.username
           })
         });
-        // Non-blocking - we don't wait for the response
-        // or handle errors since this is just audit logging
+        
+        const responseData = await response.json();
+        console.log("Cloud Function response:", responseData);
+        
       } catch (cloudFnError) {
         console.error("Failed to log note creation:", cloudFnError);
         // Continue execution even if cloud function call fails

@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cloud.google.com/neg: '{"ingress":true}'
+  creationTimestamp: "2025-05-20T10:42:58Z"
+  finalizers:
+  - service.kubernetes.io/load-balancer-cleanup
+  labels:
+    app: notesync
+  name: notesync
+  namespace: default
+  resourceVersion: "1747737893149743002"
+  uid: acffc31f-08fd-4f1a-8dab-56a9f00833b8
+spec:
+  allocateLoadBalancerNodePorts: true
+  clusterIP: 34.118.226.195
+  clusterIPs:
+  - 34.118.226.195
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - nodePort: 31245
+    port: 80
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    app: notesync
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - ip: 35.189.72.248
+      ipMode: VIP

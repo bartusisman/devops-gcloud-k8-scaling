@@ -1,198 +1,229 @@
 
+# NoteSync – Cloud-Native Architecture
 
-## ✅ **Project Structure **
+A fully-integrated cloud-native note synchronization service built on Google Cloud Platform with containerized API, serverless functions, and automated load testing.
+
+## Features
+
+- **Containerized API**: Express.js backend running in Google Kubernetes Engine (GKE) with Horizontal Pod Autoscaling (HPA)
+- **Serverless Auditing**: Cloud Function that automatically logs note creation events 
+- **Load Testing**: Dedicated Compute Engine VM running Locust for performance simulation
+- **Scalable Architecture**: Handles traffic spikes with auto-scaling Kubernetes pods
+- **Real-time Metrics**: Comprehensive performance statistics captured during load tests
+
+## Architecture Diagram
+
+```mermaid
+graph LR
+    Client[Mobile Client] -->|HTTP| LB[LoadBalancer IP: 35.189.72.248]
+    LB --> GKE[GKE Deployment: notesync]
+    GKE --> Pods[Pod(s)]
+    GKE -->|Triggers| CF[GCF: noteCreatedHandler]
+    VM[Locust VM] -->|Load Tests| LB
+```
+
+## Repository Structure
 
 ```
 NoteSync/
-│
-├── api/
+├── api/                  # Express API code
 │   ├── Dockerfile
 │   ├── package.json
 │   └── server.js
-│
-├── load-tests/
+├── load-tests/          # Locust test suite and result CSVs
 │   ├── locustfile.py
-│   ├── notesync-load_exceptions.csv
-│   ├── notesync-load_failures.csv
 │   ├── notesync-load_stats.csv
-│   └── notesync-load_stats_history.csv
-│
-├── README.md
-└── ...
-```
-
----
-
-## 🛠️ **Steps to Run Everything Locally or from the Repo**
-
-### 1. 🐳 Run the Express API on Port 3000
-
-Go to the `api/` folder:
-
-```bash
-cd api/
-```
-
-Build and run the Docker container:
-
-```bash
-docker build -t notesync-api .
-docker run -p 3000:3000 notesync-api
-```
-
-Check it's working:
-
-```bash
-curl http://localhost:3000/api/notes
-```
-
-You should get:
-
-```json
-[{"id":1,"title":"Demo note from container"}]
-```
-
----
-
-### 2. 🐜 Run Locust Load Test (From `load-tests/`)
-
-Ensure you have Locust installed:
-
-```bash
-pip install locust
-```
-
-Then:
-
-```bash
-cd load-tests/
-locust -f locustfile.py --host=http://localhost:3000 --users 100 --spawn-rate 10 --headless --run-time 1m --csv notesync-load
-```
-
-This will regenerate:
-
-* `notesync-load_stats.csv`
-* `notesync-load_failures.csv`
-* `notesync-load_stats_history.csv`
-* `notesync-load_exceptions.csv` (if any)
-
----
-
-## 📄 README.md
-
-Here’s a professional, self-contained README for your GitHub repo:
-
----
-
-```markdown
-# NoteSync Cloud-Native App
-
-This project is part of a **cloud-native architecture** term project for CS436. It integrates containerized workloads, serverless functions, and virtual machines (VMs) deployed on **Google Cloud Platform (GCP)**.
-
----
-
-## 🚀 System Overview
-
-- **Frontend**: React Native (not included here)
-- **Backend API**: A simple Express.js service exposing `/api/notes`
-- **Containerized**: Docker image built from `api/` folder
-- **VM**: Used to run Locust for load testing
-- **Kubernetes**: Deployed via GKE (Google Kubernetes Engine)
-- **Load Testing**: Conducted using Locust inside a dedicated VM
-
----
-
-## 📂 Directory Structure
-
-```
-
-.
-├── api/                        # Express API code
-│   ├── Dockerfile
+│   ├── notesync-load_failures.csv
+│   ├── notesync-load_stats_history.csv
+│   └── notesync-load_exceptions.csv
+├── note-created-function/ # Cloud Function for note creation events
+│   ├── index.js
 │   ├── package.json
-│   └── server.js
-├── load-tests/                # Locust test suite and result CSVs
-│   ├── locustfile.py
-│   ├── notesync-load\_stats.csv
-│   ├── notesync-load\_failures.csv
-│   ├── notesync-load\_stats\_history.csv
-│   └── notesync-load\_exceptions.csv
+│   └── README.md
+├── kubernetes/          # Kubernetes manifests
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── hpa.yaml
 └── README.md
-
-````
-
----
-
-## 📦 Running the API Locally
-
-```bash
-cd api/
-docker build -t notesync-api .
-docker run -p 3000:3000 notesync-api
-````
-
-Test with:
-
-```bash
-curl http://localhost:3000/api/notes
 ```
 
----
+## Quick Start
 
-## 📊 Running Load Tests
+### Prerequisites
+
+- Google Cloud SDK (`gcloud`) installed and initialized
+- Docker installed locally
+- Git client
+- GCP project with billing enabled (`cs436-project-459822`)
+- Basic knowledge of Kubernetes and GCP services
+
+### A — Build & Push API image
 
 ```bash
-cd load-tests/
+cd api
+gcloud builds submit \
+  --tag europe-west2-docker.pkg.dev/cs436-project-459822/notesync-repo/notesync:v4 .
+```
+
+The version tag (`v4`) is incremented to ensure Kubernetes recognizes this as a new deployment image.
+
+### B — Deploy / Roll out on GKE
+
+For first-time setup:
+
+```bash
+gcloud container clusters create notesync-cluster \
+  --region europe-west2 --num-nodes=2 --enable-autoscaling \
+  --min-nodes=2 --max-nodes=5      # allows scaling during traffic spikes
+gcloud container clusters get-credentials notesync-cluster --region europe-west2
+kubectl apply -f kubernetes/deployment.yaml
+kubectl apply -f kubernetes/service.yaml
+kubectl apply -f kubernetes/hpa.yaml
+```
+
+For updates to an existing deployment:
+
+```bash
+gcloud container clusters get-credentials notesync-cluster --region europe-west2
+kubectl set image deployment/notesync \
+  notesync=europe-west2-docker.pkg.dev/cs436-project-459822/notesync-repo/notesync:v4
+kubectl rollout status deployment/notesync
+```
+
+### C — Verify LoadBalancer
+
+```bash
+kubectl get svc notesync
+```
+
+Expected output:
+```
+NAME       TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)  AGE
+notesync   LoadBalancer   34.118.226.195   35.189.72.248   80/TCP   6h
+```
+
+Test the API:
+```bash
+curl http://35.189.72.248/api/notes
+```
+
+You should receive a JSON response:
+```json
+[{ "id": 1, "title": "Demo note from container" }]
+```
+
+I’ve added a new step under **D — Provision Locust VM** to show how to upload your `locustfile.py` via a single `cat` command, and I’ve fleshed out the **E — Run load test** section to reference it. Here’s the updated excerpt from your `README.md`:
+
+````markdown
+### D — Provision Locust VM
+
+Create a VM for load testing:
+
+```bash
+gcloud compute instances create locust-vm \
+  --zone=europe-west2-b \
+  --machine-type=e2-medium \
+  --tags=locust \
+  --metadata-from-file=startup-script=<(cat << 'EOF'
+#!/bin/bash
+apt update && apt install -y git python3-venv
+git clone https://github.com/bartusisman/NoteSync.git
+cd NoteSync/load-tests
+python3 -m venv locust-env
+source locust-env/bin/activate
 pip install locust
-locust -f locustfile.py --host=http://localhost:3000 --users 100 --spawn-rate 10 --headless --run-time 1m --csv notesync-load
+EOF
+)
+````
+
+Open an SSH session and **upload** the `locustfile.py`:
+
+```bash
+gcloud compute ssh locust-vm --zone=europe-west2-b
+
+# In the VM’s shell:
+cd ~/NoteSync/load-tests
+cat > locustfile.py << 'EOF'
+from locust import HttpUser, task, between
+import random
+import string
+import json
+
+class NoteSyncUser(HttpUser):
+    wait_time = between(1, 3)
+    
+    # Storage for created note IDs so we can update/delete them
+    created_notes = []
+    
+    def on_start(self):
+        # Perform login to get authenticated
+        username = f"testuser_{random.randint(1, 1000)}"
+        password = "password123"
+        self.client.post("/auth/login", json={
+            "username": username,
+            "password": password
+        })
+    
+    @task(3)
+    def get_all_notes(self):
+        self.client.get("/api/notes")
+    
+    @task(2)
+    def get_user_notes(self):
+        self.client.get("/api/notes/user")
+    
+    @task(1)
+    def create_note(self):
+        title = f"Test Note {random.randint(1, 1000)}"
+        content = ''.join(random.choices(string.ascii_letters + ' ', k=50))
+        with self.client.post("/api/notes", 
+                              json={"title": title, "content": content},
+                              catch_response=True) as response:
+            if response.status_code == 201:
+                try:
+                    note_data = response.json()
+                    if 'id' in note_data:
+                        self.created_notes.append(note_data['id'])
+                except json.JSONDecodeError:
+                    pass
+    
+    @task(1)
+    def update_note(self):
+        if self.created_notes:
+            note_id = random.choice(self.created_notes)
+            title = f"Updated Note {random.randint(1, 1000)}"
+            content = ''.join(random.choices(string.ascii_letters + ' ', k=50))
+            self.client.put(f"/api/notes/{note_id}", 
+                            json={"title": title, "content": content})
+    
+    @task(1)
+    def delete_note(self):
+        if self.created_notes and len(self.created_notes) > 5:
+            note_id = self.created_notes.pop()
+            self.client.delete(f"/api/notes/{note_id}")
+EOF
 ```
 
-CSV reports will be regenerated in the same folder.
+### E — Run Load Test
 
----
+With `locustfile.py` in place:
 
-## 📁 CSV Reports Explained
+```bash
+# Still on locust-vm
+source ~/NoteSync/load-tests/locust-env/bin/activate
 
-| File                              | Purpose                               |
-| --------------------------------- | ------------------------------------- |
-| `notesync-load_stats.csv`         | Summary of request stats per endpoint |
-| `notesync-load_failures.csv`      | Failure reports (if any)              |
-| `notesync-load_stats_history.csv` | Request stats over time               |
-| `notesync-load_exceptions.csv`    | Exceptions raised during testing      |
-
----
-
-## 🌐 Cloud Infrastructure
-
-* GCP Project: `cs436-project-459822`
-* Docker image hosted on:
-  `europe-west2-docker.pkg.dev/cs436-project-459822/notesync-repo/notesync:v3`
-* Kubernetes service exposes the container on port 3000 via LoadBalancer.
-
----
-
-## 🔬 Performance Metrics (Locust)
-
-* **Users:** 100
-* **Spawn Rate:** 10 users/s
-* **Duration:** 1 minute
-* **Target Endpoint:** `GET /api/notes`
-
----
-
-## 🧪 Example Output
-
-```text
-GET /api/notes: 2809 requests, 0 failures, avg response time: 5ms
-Max latency: 213ms, 99th percentile: 20ms
+locust -f ~/NoteSync/load-tests/locustfile.py \
+  --host="http://35.189.72.248" \
+  --users 100 --spawn-rate 10 \
+  --headless --run-time 1m \
+  --csv notesync-load
 ```
 
----
-
-## 👨‍💻 Author
-
-**Bartu Şişman** – CS436 Term Project, Spring 2025
-Sabancı University
+This will spin up 100 virtual users at 10 users/sec over 1 minute and output:
 
 ```
-
+notesync-load_stats.csv
+notesync-load_failures.csv
+notesync-load_stats_history.csv
+notesync-load_exceptions.csv
+```

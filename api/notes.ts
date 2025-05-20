@@ -1,6 +1,7 @@
 import { UUID } from '../types';
 import { supabase } from '../lib/supabase';
 import { api } from './client';
+import fetch from 'cross-fetch';
 
 export interface Note {
   id: UUID;
@@ -15,6 +16,9 @@ export interface CreateNoteDTO {
   title: string;
   content: string;
 }
+
+// Define the Cloud Function URL
+const LOG_NOTE_CREATED_URL = "https://europe-west2-notesync-project.cloudfunctions.net/logNoteCreated";
 
 export const notesApi = {
   async create(data: CreateNoteDTO): Promise<Note> {
@@ -35,6 +39,24 @@ export const notesApi = {
         .single();
 
       if (error) throw error;
+      
+      // Call the Cloud Function to log the note creation
+      try {
+        await fetch(LOG_NOTE_CREATED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: note.title,
+            timestamp: note.timestamp
+          })
+        });
+        // Non-blocking - we don't wait for the response
+        // or handle errors since this is just audit logging
+      } catch (cloudFnError) {
+        console.error("Failed to log note creation:", cloudFnError);
+        // Continue execution even if cloud function call fails
+      }
+      
       return note;
     } catch (error) {
       return api.handleError(error);

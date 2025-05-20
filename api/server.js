@@ -1,6 +1,10 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const fetch = require('node-fetch');
 const app = express();
+
+// Cloud Function URL
+const LOG_NOTE_CREATED_URL = "https://europe-west2-notesync-project.cloudfunctions.net/logNoteCreated";
 
 // In-memory store for notes
 const notes = [
@@ -58,6 +62,24 @@ app.post('/api/notes', auth, (req, res) => {
   };
   
   notes.push(newNote);
+  
+  // Call the Cloud Function to log the note creation
+  try {
+    fetch(LOG_NOTE_CREATED_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: newNote.title,
+        timestamp: newNote.timestamp
+      })
+    }).catch(err => {
+      console.error("Failed to log note creation:", err);
+    });
+    // Non-blocking - we don't wait for the response
+  } catch (error) {
+    console.error("Error calling Cloud Function:", error);
+  }
+  
   res.status(201).json(newNote);
 });
 

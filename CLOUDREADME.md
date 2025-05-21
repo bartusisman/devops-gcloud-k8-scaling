@@ -1,4 +1,3 @@
-
 # NoteSync – Cloud-Native Architecture
 
 A fully-integrated cloud-native note synchronization service built on Google Cloud Platform with containerized API, serverless functions, and automated load testing.
@@ -6,7 +5,7 @@ A fully-integrated cloud-native note synchronization service built on Google Clo
 ## Features
 
 - **Containerized API**: Express.js backend running in Google Kubernetes Engine (GKE) with Horizontal Pod Autoscaling (HPA)
-- **Serverless Auditing**: Cloud Function that automatically logs note creation events 
+- **Serverless Auditing**: Cloud Function that automatically logs note creation events
 - **Load Testing**: Dedicated Compute Engine VM running Locust for performance simulation
 - **Scalable Architecture**: Handles traffic spikes with auto-scaling Kubernetes pods
 - **Real-time Metrics**: Comprehensive performance statistics captured during load tests
@@ -97,133 +96,205 @@ kubectl get svc notesync
 ```
 
 Expected output:
+
 ```
 NAME       TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)  AGE
 notesync   LoadBalancer   34.118.226.195   35.189.72.248   80/TCP   6h
 ```
 
 Test the API:
+
 ```bash
 curl http://35.189.72.248/api/notes
 ```
 
 You should receive a JSON response:
+
 ```json
 [{ "id": 1, "title": "Demo note from container" }]
 ```
 
-I’ve added a new step under **D — Provision Locust VM** to show how to upload your `locustfile.py` via a single `cat` command, and I’ve fleshed out the **E — Run load test** section to reference it. Here’s the updated excerpt from your `README.md`:
+Here’s an updated **README.md** excerpt that walks through spinning up a VM, cloning your repo, and running the Locust tests exactly as you’ve done:
 
 ````markdown
-### D — Provision Locust VM
 
-Create a VM for load testing:
+### D — Provisioning & Preparing a Test VM
 
-```bash
-gcloud compute instances create locust-vm \
-  --zone=europe-west2-b \
-  --machine-type=e2-medium \
-  --tags=locust \
-  --metadata-from-file=startup-script=<(cat << 'EOF'
-#!/bin/bash
-apt update && apt install -y git python3-venv
-git clone https://github.com/bartusisman/NoteSync.git
-cd NoteSync/load-tests
-python3 -m venv locust-env
-source locust-env/bin/activate
-pip install locust
-EOF
-)
+The idea here is to simulate running the load‐test from “another device,” just like a real user would.
+
+1. **Create a VM** (e.g. on Google Cloud):
+
+   ```bash
+   gcloud compute instances create locust-vm \
+     --zone=us-central1-a \
+     --machine-type=e2-medium \
+     --tags=http-server
 ````
 
-Open an SSH session and **upload** the `locustfile.py`:
+2. **SSH into your VM** and install the basics:
+
+   ```bash
+   gcloud compute ssh locust-vm --zone=us-central1-a
+   sudo apt update && sudo apt install -y python3 python3-venv git
+   ```
+
+3. **Clone your NoteSync repo** and set up Python:
+
+   ```bash
+   git clone git@github.com:your-org/NoteSync.git
+   cd NoteSync
+   python3 -m venv load-tests/locust-env
+   source load-tests/locust-env/bin/activate
+   pip install locust requests
+   ```
+
+---
+
+### E — Setting Up Locust Tests
+
+At the top of the locustfile.py set these:
+
+```
+SUPABASE_URL="https://your-supabase-url.supabase.co"
+SUPABASE_ANON_KEY="your-supabase-anon-key"
+
+HOST="http://YOUR.LB.IP.ADDRESS"
+```
+
+> **Tip:** To grab your LoadBalancer’s external IP, run:
+>
+> ```bash
+> kubectl get svc notesync -n default
+> ```
+
+---
+
+## F — Run the Load Test
+
+From **within** the VM, with your venv activated and `.env` in place:
 
 ```bash
-gcloud compute ssh locust-vm --zone=europe-west2-b
-
-# In the VM’s shell:
 cd ~/NoteSync/load-tests
-cat > locustfile.py << 'EOF'
-from locust import HttpUser, task, between
-import random
-import string
-import json
+source locust-env/bin/activate
 
-class NoteSyncUser(HttpUser):
-    wait_time = between(1, 3)
-    
-    # Storage for created note IDs so we can update/delete them
-    created_notes = []
-    
-    def on_start(self):
-        # Perform login to get authenticated
-        username = f"testuser_{random.randint(1, 1000)}"
-        password = "password123"
-        self.client.post("/auth/login", json={
-            "username": username,
-            "password": password
-        })
-    
-    @task(3)
-    def get_all_notes(self):
-        self.client.get("/api/notes")
-    
-    @task(2)
-    def get_user_notes(self):
-        self.client.get("/api/notes/user")
-    
-    @task(1)
-    def create_note(self):
-        title = f"Test Note {random.randint(1, 1000)}"
-        content = ''.join(random.choices(string.ascii_letters + ' ', k=50))
-        with self.client.post("/api/notes", 
-                              json={"title": title, "content": content},
-                              catch_response=True) as response:
-            if response.status_code == 201:
-                try:
-                    note_data = response.json()
-                    if 'id' in note_data:
-                        self.created_notes.append(note_data['id'])
-                except json.JSONDecodeError:
-                    pass
-    
-    @task(1)
-    def update_note(self):
-        if self.created_notes:
-            note_id = random.choice(self.created_notes)
-            title = f"Updated Note {random.randint(1, 1000)}"
-            content = ''.join(random.choices(string.ascii_letters + ' ', k=50))
-            self.client.put(f"/api/notes/{note_id}", 
-                            json={"title": title, "content": content})
-    
-    @task(1)
-    def delete_note(self):
-        if self.created_notes and len(self.created_notes) > 5:
-            note_id = self.created_notes.pop()
-            self.client.delete(f"/api/notes/{note_id}")
-EOF
+locust -f locustfile.py \
+  --host="$HOST" \
+  --users 1000 --spawn-rate 20 \
+  --headless --run-time 2m \
+  --csv=heavy-test
 ```
 
-### E — Run Load Test
+You’ll see something like:
 
-With `locustfile.py` in place:
+```
+heavy-test_stats.csv
+heavy-test_failures.csv
+heavy-test_stats_history.csv
+heavy-test_exceptions.csv
+```
+
+````markdown
+## G — Deploying & Scheduling the `note-created` Cloud Function
+
+To power our in-app notifications (so that whenever someone creates a note, clients get notified), we’ve packaged a small Node.js “poller” into a Google Cloud Function and wired it up on a schedule.
+
+### 1. Folder structure
+
+```text
+note-created-function/
+├── index.js
+├── package.json
+└── README.md
+````
+
+### 2. index.js
+
+```js
+// note-created-function/index.js
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+// This handler is triggered on each HTTP invocation by Cloud Scheduler.
+// It pulls any notes created since the last run,
+// emits notifications (e.g. via WebSocket, FCM, etc.), and updates state.
+exports.fetchNewNotes = async (req, res) => {
+  try {
+    // 1) Load the timestamp of the last poll (you might store this in Firestore, Redis, etc.)
+    const lastPoll = /* your logic here */;
+
+    // 2) Fetch notes newer than lastPoll
+    const { data: newNotes, error } = await supabase
+      .from('notes')
+      .select('*')
+      .gt('timestamp', lastPoll);
+
+    if (error) throw error;
+
+    // 3) For each new note, send a notification
+    for (const note of newNotes) {
+      // e.g. pushViaFCM(note) or broadcastWS(note)
+    }
+
+    // 4) Update your saved lastPoll timestamp to now
+    /* your logic here */
+
+    res.status(200).send(`Notified ${newNotes.length} new notes.`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
+  }
+};
+```
+
+### 3. package.json
+
+```json
+{
+  "name": "note-created-function",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}
+```
+
+### 4. Deploy to Cloud Functions
 
 ```bash
-# Still on locust-vm
-source ~/NoteSync/load-tests/locust-env/bin/activate
+cd note-created-function
 
-locust -f ~/NoteSync/load-tests/locustfile.py \
-  --host="http://35.189.72.248" \
-  --users 100 --spawn-rate 10 \
-  --headless --run-time 1m \
-  --csv notesync-load
+gcloud functions deploy fetchNewNotes \
+  --entry-point=fetchNewNotes \
+  --runtime=nodejs18 \
+  --trigger-http \
+  --region=us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars=\
+SUPABASE_URL="https://your-supabase-url.supabase.co",\
+SUPABASE_SERVICE_KEY="your-service-role-key"
 ```
 
-This will spin up 100 virtual users at 10 users/sec over 1 minute and output:
+> **Note:** Use your Supabase **service\_role** key here so the function can read all rows.
+
+### 5. Wire up Cloud Scheduler
+
+Every 5 seconds (or whatever cadence you prefer), hit your function:
+
+```bash
+gcloud scheduler jobs create http note-created-poll \
+  --schedule="*/5 * * * *" \
+  --time-zone="UTC" \
+  --uri="https://us-central1-<YOUR_PROJECT>.cloudfunctions.net/fetchNewNotes" \
+  --http-method=GET
+
 
 ```
-notesync-load_stats.csv
-notesync-load_failures.csv
-notesync-load_stats_history.csv
-notesync-load_exceptions.csv
 ```
+
+
+

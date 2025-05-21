@@ -141,11 +141,11 @@ The idea here is to simulate running the load‐test from “another device,” 
 3. **Clone your NoteSync repo** and set up Python:
 
    ```bash
-   git clone git@github.com:your-org/NoteSync.git
+   git clone https://github.com/bartusisman/NoteSync
    cd NoteSync
    python3 -m venv load-tests/locust-env
    source load-tests/locust-env/bin/activate
-   pip install locust requests
+   pip install locust requests or sudo apt-get install kubectl
    ```
 
 ---
@@ -169,6 +169,9 @@ Also in run_scripts.sh add ur external ip of load balancer too
 > kubectl get svc notesync -n default
 > ```
 
+Remember u wont be able to have a valid cpu_usage.csv in VM because u cant
+sign into your gcloud in VM. If you also want to monitor ur cpu usage as a csv
+run this run_scripts.sc in your local device too
 ---
 
 ## F — Run the Load Test

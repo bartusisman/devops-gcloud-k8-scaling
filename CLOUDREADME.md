@@ -161,6 +161,8 @@ SUPABASE_ANON_KEY="your-supabase-anon-key"
 HOST="http://YOUR.LB.IP.ADDRESS"
 ```
 
+Also in run_scripts.sh add ur external ip of load balancer too
+
 > **Tip:** To grab your LoadBalancer’s external IP, run:
 >
 > ```bash
@@ -172,25 +174,16 @@ HOST="http://YOUR.LB.IP.ADDRESS"
 ## F — Run the Load Test
 
 From **within** the VM, with your venv activated and `.env` in place:
+You can run the custom run_tests.sh scrip that i implemented it runs 4 tests
+saves their stats under folders 1 2 3 4 we have info like cpu_usage also 
 
 ```bash
 cd ~/NoteSync/load-tests
 source locust-env/bin/activate
 
-locust -f locustfile.py \
-  --host="$HOST" \
-  --users 1000 --spawn-rate 20 \
-  --headless --run-time 2m \
-  --csv=heavy-test
-```
+chmod +x run_tests.sh
+./run_tests.sh
 
-You’ll see something like:
-
-```
-heavy-test_stats.csv
-heavy-test_failures.csv
-heavy-test_stats_history.csv
-heavy-test_exceptions.csv
 ```
 
 ````markdown

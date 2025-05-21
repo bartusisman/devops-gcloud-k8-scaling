@@ -1,0 +1,16 @@
+Method,Name,Error,Occurrences
+GET,/notes/user,RemoteDisconnected('Remote end closed connection without response'),7
+GET,/notes (all),"ConnectionResetError(54, 'Connection reset by peer')",29
+DELETE,/notes/:id (delete),HTTPError('404 Client Error: Not Found for url: /notes/:id (delete)'),285
+POST,/notes (seed),CatchResponseError('seed failed 0'),7
+DELETE,/notes/:id (delete),RemoteDisconnected('Remote end closed connection without response'),4
+PUT,/notes/:id (update),RemoteDisconnected('Remote end closed connection without response'),12
+POST,/supabase/signup,CatchResponseError('signup 429'),921
+GET,/notes/user,"ConnectionResetError(54, 'Connection reset by peer')",12
+GET,/notes (all),RemoteDisconnected('Remote end closed connection without response'),11
+GET,/notes (all),"ReadTimeout(ReadTimeoutError(""HTTPConnectionPool(host='35.189.72.248', port=80): Read timed out. (read timeout=None)""))",1
+POST,/supabase/signup,CatchResponseError('signup 0'),52
+DELETE,/notes/:id (delete),"ConnectionResetError(54, 'Connection reset by peer')",9
+POST,/notes (create),CatchResponseError('create 0'),52
+PUT,/notes/:id (update),"ConnectionResetError(54, 'Connection reset by peer')",11
+PUT,/notes/:id (update),HTTPError('404 Client Error: Not Found for url: /notes/:id (update)'),530

@@ -1,0 +1,9 @@
+Method,Name,Error,Occurrences
+DELETE,/notes/:id (delete),HTTPError('404 Client Error: Not Found for url: /notes/:id (delete)'),278
+DELETE,/notes/:id (delete),RemoteDisconnected('Remote end closed connection without response'),3
+PUT,/notes/:id (update),RemoteDisconnected('Remote end closed connection without response'),3
+POST,/supabase/signup,CatchResponseError('signup 429'),441
+GET,/notes (all),RemoteDisconnected('Remote end closed connection without response'),5
+POST,/supabase/signup,CatchResponseError('signup 0'),40
+POST,/notes (create),CatchResponseError('create 0'),13
+PUT,/notes/:id (update),HTTPError('404 Client Error: Not Found for url: /notes/:id (update)'),471

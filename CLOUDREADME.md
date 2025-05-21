@@ -31,10 +31,9 @@ NoteSync/
 │   └── server.js
 ├── load-tests/          # Locust test suite and result CSVs
 │   ├── locustfile.py
-│   ├── notesync-load_stats.csv
-│   ├── notesync-load_failures.csv
-│   ├── notesync-load_stats_history.csv
-│   └── notesync-load_exceptions.csv
+│   ├── tests
+│   ├── run_tests.sh
+|   ├── visualize_tests.py
 ├── note-created-function/ # Cloud Function for note creation events
 │   ├── index.js
 │   ├── package.json
@@ -169,9 +168,13 @@ Also in run_scripts.sh add ur external ip of load balancer too
 > kubectl get svc notesync -n default
 > ```
 
-Remember u wont be able to have a valid cpu_usage.csv in VM because u cant
+Remember you wont be able to have a valid cpu_usage.csv in VM because u cant
 sign into your gcloud in VM. If you also want to monitor ur cpu usage as a csv
 run this run_scripts.sc in your local device too
+
+run visualize_tests.py after you created a venv and intalled requirements.txt
+it creates 4 graphs for each test
+and 3 graphs for comparision of difference loads
 ---
 
 ## F — Run the Load Test
